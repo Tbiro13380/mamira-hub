@@ -59,6 +59,7 @@ class DashboardController extends Controller
                     'user' => [
                         'id' => $activity->user->id,
                         'name' => $activity->user->name,
+                        'avatar' => $activity->user->avatar ? Storage::url($activity->user->avatar) : null,
                         'selected_badge' => $activity->user->selectedBadge ? [
                             'id' => $activity->user->selectedBadge->id,
                             'name' => $activity->user->selectedBadge->name,
@@ -83,6 +84,7 @@ class DashboardController extends Controller
                     'user' => [
                         'id' => $photo->user->id,
                         'name' => $photo->user->name,
+                        'avatar' => $photo->user->avatar ? Storage::url($photo->user->avatar) : null,
                         'selected_badge' => $photo->user->selectedBadge ? [
                             'id' => $photo->user->selectedBadge->id,
                             'name' => $photo->user->selectedBadge->name,
@@ -110,6 +112,7 @@ class DashboardController extends Controller
                     'user' => [
                         'id' => $letter->user->id,
                         'name' => $letter->user->name,
+                        'avatar' => $letter->user->avatar ? Storage::url($letter->user->avatar) : null,
                         'selected_badge' => $letter->user->selectedBadge ? [
                             'id' => $letter->user->selectedBadge->id,
                             'name' => $letter->user->selectedBadge->name,

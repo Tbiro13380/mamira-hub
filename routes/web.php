@@ -67,6 +67,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [MemeController::class, 'index'])->name('index');
         Route::post('/', [MemeController::class, 'store'])->name('store');
         Route::post('{meme}/vote', [MemeController::class, 'vote'])->name('vote');
+        Route::post('{meme}/comments', [MemeController::class, 'storeComment'])->name('comments.store');
     });
 
     // Quizzes

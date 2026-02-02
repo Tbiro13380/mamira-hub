@@ -40,7 +40,24 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
-        @vite(['resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
+        @php
+            $manifestPath = public_path('build/manifest.json');
+            if (file_exists($manifestPath)) {
+                $manifest = json_decode(file_get_contents($manifestPath), true);
+                $appEntry = $manifest['resources/js/app.ts'] ?? null;
+            }
+        @endphp
+        
+        @if(isset($appEntry))
+            <script type="module" src="{{ asset('build/' . $appEntry['file']) }}"></script>
+            @if(isset($appEntry['css']))
+                @foreach($appEntry['css'] as $css)
+                    <link rel="stylesheet" href="{{ asset('build/' . $css) }}">
+                @endforeach
+            @endif
+        @else
+            @vite(['resources/js/app.ts'])
+        @endif
         @inertiaHead
     </head>
     <body class="font-sans antialiased">

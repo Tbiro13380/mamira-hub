@@ -3,6 +3,8 @@ import { Head } from '@inertiajs/vue3';
 import { Trophy, Medal, Award, Crown, User as UserIcon } from 'lucide-vue-next';
 import Heading from '@/components/Heading.vue';
 import UserBadges from '@/components/UserBadges.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useInitials } from '@/composables/useInitials';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index as leaderboardIndex } from '@/routes/leaderboard';
@@ -18,6 +20,7 @@ type UserBadge = {
 type LeaderboardUser = {
     id: number;
     name: string;
+    avatar?: string | null;
     score: number;
     rank: number;
     letters_count: number;
@@ -26,6 +29,8 @@ type LeaderboardUser = {
     badges_count: number;
     selected_badge?: UserBadge | null;
 };
+
+const { getInitials } = useInitials();
 
 type Props = {
     users: LeaderboardUser[];
@@ -103,6 +108,13 @@ const getRankColor = (rank: number) => {
                                     :class="['h-6 w-6', getRankColor(user.rank)]"
                                 />
                             </div>
+
+                            <Avatar class="h-10 w-10 shrink-0">
+                                <AvatarImage v-if="user.avatar" :src="user.avatar" :alt="user.name" />
+                                <AvatarFallback class="rounded-full">
+                                    {{ getInitials(user.name) }}
+                                </AvatarFallback>
+                            </Avatar>
 
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 mb-1">

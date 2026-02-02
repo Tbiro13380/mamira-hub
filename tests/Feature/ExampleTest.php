@@ -3,5 +3,6 @@
 test('returns a successful response', function () {
     $response = $this->get(route('home'));
 
-    $response->assertOk();
+    // A rota home redireciona para login quando não autenticado
+    $response->assertRedirect(route('login'));
 });

@@ -6,6 +6,7 @@ use App\Models\Quiz;
 use App\Models\QuizQuestion;
 use App\Models\QuizAnswer;
 use App\Models\QuizMedal;
+use App\Services\ActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +58,7 @@ class QuizController extends Controller
                 'creator' => [
                     'id' => $activeQuiz->creator->id,
                     'name' => $activeQuiz->creator->name,
+                    'avatar' => $activeQuiz->creator->avatar ? \Illuminate\Support\Facades\Storage::url($activeQuiz->creator->avatar) : null,
                     'selected_badge' => $activeQuiz->creator->selectedBadge ? [
                         'id' => $activeQuiz->creator->selectedBadge->id,
                         'name' => $activeQuiz->creator->selectedBadge->name,
@@ -98,6 +100,13 @@ class QuizController extends Controller
                     'creator' => [
                         'id' => $quiz->creator->id,
                         'name' => $quiz->creator->name,
+                        'avatar' => $quiz->creator->avatar ? \Illuminate\Support\Facades\Storage::url($quiz->creator->avatar) : null,
+                        'selected_badge' => $quiz->creator->selectedBadge ? [
+                            'id' => $quiz->creator->selectedBadge->id,
+                            'name' => $quiz->creator->selectedBadge->name,
+                            'icon' => $quiz->creator->selectedBadge->icon,
+                            'color' => $quiz->creator->selectedBadge->color,
+                        ] : null,
                     ],
                 ];
             });
@@ -165,6 +174,14 @@ class QuizController extends Controller
             ]);
         }
 
+        // Registrar atividade
+        $activityService = new ActivityService();
+        $activityService->recordQuizCreated(Auth::user(), $quiz);
+
+        // Verificar badges
+        $badgeService = new \App\Services\BadgeService();
+        $badgeService->checkAndAwardBadges(Auth::user(), 'quizzes_created');
+
         return redirect()->route('quizzes.index')->with('message', 'Quiz criado com sucesso!');
     }
 
@@ -216,8 +233,20 @@ class QuizController extends Controller
             'completed_at' => $now,
         ]);
 
+        // Registrar atividade
+        $activityService = new ActivityService();
+        $activityService->recordQuizAnswered(Auth::user(), $quiz, $quizAnswer);
+
+        // Verificar badges
+        $badgeService = new \App\Services\BadgeService();
+        $badgeService->checkAndAwardBadges(Auth::user(), 'quizzes_answered');
+
         // Se acertou tudo, verificar se é o primeiro e mais rápido - ganha medalha
         if ($isPerfect) {
+            // Verificar badge de quiz perfeito
+            $badgeService->checkAndAwardBadges(Auth::user(), 'quiz_perfect');
+            
+            // Registrar atividade de quiz perfeito (já registrado em recordQuizAnswered)
             // Buscar o primeiro que acertou tudo (mais rápido)
             $firstPerfect = QuizAnswer::where('quiz_id', $quiz->id)
                 ->where('is_perfect', true)

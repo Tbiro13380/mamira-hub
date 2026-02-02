@@ -4,6 +4,11 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Badge;
+use App\Models\Meme;
+use App\Models\Photo;
+use App\Models\Quiz;
+use App\Models\HallOfFame;
+use App\Models\QuizAnswer;
 use Illuminate\Support\Facades\DB;
 
 class BadgeService
@@ -33,6 +38,14 @@ class BadgeService
             'comments_count' => $user->comments()->count() >= $badge->condition_value,
             'night_owl' => $this->checkNightOwl($context),
             'the_chosen_one' => $this->checkTheChosenOne($user),
+            'memes_count' => $this->getMemesCount($user) >= $badge->condition_value,
+            'hall_of_fame' => $this->checkHallOfFame($user) >= $badge->condition_value,
+            'photos_count' => $this->getPhotosCount($user) >= $badge->condition_value,
+            'quizzes_created' => $this->getQuizzesCreated($user) >= $badge->condition_value,
+            'quizzes_answered' => $this->getQuizzesAnswered($user) >= $badge->condition_value,
+            'quiz_perfect' => $this->checkQuizPerfect($user) >= $badge->condition_value,
+            'leaderboard_top3' => $this->checkLeaderboardPosition($user, 3),
+            'leaderboard_top1' => $this->checkLeaderboardPosition($user, 1),
             default => false,
         };
     }
@@ -70,6 +83,75 @@ class BadgeService
             ->count();
     }
 
+    protected function getMemesCount(User $user): int
+    {
+        return Meme::where('user_id', $user->id)->count();
+    }
+
+    protected function checkHallOfFame(User $user): int
+    {
+        return HallOfFame::whereHas('meme', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })->count();
+    }
+
+    protected function getPhotosCount(User $user): int
+    {
+        return Photo::where('user_id', $user->id)->count();
+    }
+
+    protected function getQuizzesCreated(User $user): int
+    {
+        return Quiz::where('created_by', $user->id)->count();
+    }
+
+    protected function getQuizzesAnswered(User $user): int
+    {
+        return QuizAnswer::where('user_id', $user->id)->count();
+    }
+
+    protected function checkQuizPerfect(User $user): int
+    {
+        return QuizAnswer::where('user_id', $user->id)
+            ->where('is_perfect', true)
+            ->count();
+    }
+
+    protected function checkLeaderboardPosition(User $user, int $position): bool
+    {
+        $users = User::with('selectedBadge')
+            ->withCount(['letters', 'comments', 'badges'])
+            ->get()
+            ->map(function ($u) {
+                $likesReceived = DB::table('likes')
+                    ->join('letters', 'likes.letter_id', '=', 'letters.id')
+                    ->where('letters.user_id', $u->id)
+                    ->count();
+
+                $score = ($u->letters_count * 10) 
+                    + ($likesReceived * 5) 
+                    + ($u->comments_count * 2) 
+                    + ($u->badges_count * 20);
+
+                return [
+                    'id' => $u->id,
+                    'score' => $score,
+                ];
+            })
+            ->sortByDesc('score')
+            ->values()
+            ->map(function ($u, $index) {
+                return [
+                    'id' => $u['id'],
+                    'rank' => $index + 1,
+                ];
+            });
+
+        $userRank = $users->firstWhere('id', $user->id);
+        
+        return $userRank && $userRank['rank'] <= $position;
+    }
+
     protected function awardBadge(User $user, Badge $badge): void
     {
         $user->badges()->attach($badge->id, [
@@ -79,6 +161,9 @@ class BadgeService
         // Registrar atividade
         $activityService = new ActivityService();
         $activityService->recordBadgeEarned($user, $badge);
+        
+        // Verificar se alcançou o 1º lugar no leaderboard (badges dão muitos pontos)
+        $activityService->checkAndRecordLeaderboardFirstPlace();
     }
 
     public function checkAllBadges(User $user): void
@@ -103,6 +188,13 @@ class BadgeService
 
             if ($badge->condition_type === 'the_chosen_one') {
                 if ($this->checkTheChosenOne($user)) {
+                    $this->awardBadge($user, $badge);
+                }
+                continue;
+            }
+
+            if (in_array($badge->condition_type, ['leaderboard_top3', 'leaderboard_top1'])) {
+                if ($this->checkLeaderboardPosition($user, $badge->condition_type === 'leaderboard_top1' ? 1 : 3)) {
                     $this->awardBadge($user, $badge);
                 }
                 continue;

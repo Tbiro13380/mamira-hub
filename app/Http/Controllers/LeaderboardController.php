@@ -40,6 +40,7 @@ class LeaderboardController extends Controller
                 return [
                     'id' => $user->id,
                     'name' => $user->name,
+                    'avatar' => $user->avatar ? \Illuminate\Support\Facades\Storage::url($user->avatar) : null,
                     'score' => $score,
                     'letters_count' => $user->letters_count,
                     'likes_received' => $likesReceived,

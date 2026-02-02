@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Meme;
 use App\Models\MemeVote;
+use App\Models\MemeComment;
 use App\Models\HallOfFame;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,12 +21,38 @@ class MemeController extends Controller
         $userId = Auth::id();
 
         // Memes de hoje
-        $todayMemes = Meme::with(['user.selectedBadge', 'votes'])
+        $todayMemes = Meme::with(['user.selectedBadge', 'votes.user.selectedBadge', 'comments.user.selectedBadge'])
+            ->withCount('comments')
             ->whereDate('meme_date', $today)
             ->orderBy('total_votes', 'desc')
             ->get()
             ->map(function ($meme) use ($userId) {
                 $userVote = $meme->getUserVote($userId);
+                
+                // Agrupar votos por emoji com informações dos usuários
+                $votesByEmoji = [];
+                $allVotes = $meme->votes()->with('user.selectedBadge')->get();
+                foreach ($allVotes as $vote) {
+                    if (!isset($votesByEmoji[$vote->emoji])) {
+                        $votesByEmoji[$vote->emoji] = [
+                            'count' => 0,
+                            'users' => [],
+                        ];
+                    }
+                    $votesByEmoji[$vote->emoji]['count']++;
+                    $votesByEmoji[$vote->emoji]['users'][] = [
+                        'id' => $vote->user->id,
+                        'name' => $vote->user->name,
+                        'avatar' => $vote->user->avatar ? Storage::url($vote->user->avatar) : null,
+                        'selected_badge' => $vote->user->selectedBadge ? [
+                            'id' => $vote->user->selectedBadge->id,
+                            'name' => $vote->user->selectedBadge->name,
+                            'icon' => $vote->user->selectedBadge->icon,
+                            'color' => $vote->user->selectedBadge->color,
+                        ] : null,
+                    ];
+                }
+                
                 return [
                     'id' => $meme->id,
                     'type' => $meme->type,
@@ -34,14 +61,30 @@ class MemeController extends Controller
                     'total_votes' => $meme->total_votes,
                     'is_winner' => $meme->is_winner,
                     'user_vote' => $userVote ? $userVote->emoji : null,
-                    'votes_by_emoji' => $meme->votes()->selectRaw('emoji, count(*) as count')
-                        ->groupBy('emoji')
-                        ->get()
-                        ->pluck('count', 'emoji')
-                        ->toArray(),
+                    'votes_by_emoji' => $votesByEmoji,
+                    'comments_count' => $meme->comments_count,
+                    'comments' => $meme->comments->map(function ($comment) {
+                        return [
+                            'id' => $comment->id,
+                            'content' => $comment->content,
+                            'created_at' => $comment->created_at,
+                            'user' => [
+                                'id' => $comment->user->id,
+                                'name' => $comment->user->name,
+                                'avatar' => $comment->user->avatar ? Storage::url($comment->user->avatar) : null,
+                                'selected_badge' => $comment->user->selectedBadge ? [
+                                    'id' => $comment->user->selectedBadge->id,
+                                    'name' => $comment->user->selectedBadge->name,
+                                    'icon' => $comment->user->selectedBadge->icon,
+                                    'color' => $comment->user->selectedBadge->color,
+                                ] : null,
+                            ],
+                        ];
+                    }),
                     'user' => [
                         'id' => $meme->user->id,
                         'name' => $meme->user->name,
+                        'avatar' => $meme->user->avatar ? Storage::url($meme->user->avatar) : null,
                         'selected_badge' => $meme->user->selectedBadge ? [
                             'id' => $meme->user->selectedBadge->id,
                             'name' => $meme->user->selectedBadge->name,
@@ -68,6 +111,7 @@ class MemeController extends Controller
                         'user' => [
                             'id' => $entry->meme->user->id,
                             'name' => $entry->meme->user->name,
+                            'avatar' => $entry->meme->user->avatar ? Storage::url($entry->meme->user->avatar) : null,
                             'selected_badge' => $entry->meme->user->selectedBadge ? [
                                 'id' => $entry->meme->user->selectedBadge->id,
                                 'name' => $entry->meme->user->selectedBadge->name,
@@ -96,26 +140,38 @@ class MemeController extends Controller
         $maxUploadKB = min($uploadMax, $postMax) / 1024; // Converter para KB
         
         $validated = $request->validate([
-            'media' => 'required|file|mimes:jpeg,png,jpg,gif,webp,mp4,avi,mov,webm|max:' . (int) $maxUploadKB,
+            'media' => 'required|file|mimes:jpeg,png,jpg,gif,webp,mp4,avi,mov,webm,mp3,wav,ogg,m4a|max:' . (int) $maxUploadKB,
             'caption' => 'nullable|string|max:500',
         ], [
+            'media.required' => 'Por favor, selecione um arquivo para upload.',
+            'media.file' => 'O arquivo enviado é inválido.',
+            'media.mimes' => 'Formato de arquivo não suportado. Use: imagens (JPEG, PNG, JPG, GIF, WEBP), vídeos (MP4, AVI, MOV, WEBM) ou áudios (MP3, WAV, OGG, M4A).',
             'media.max' => 'O arquivo é muito grande. O limite atual do servidor é ' . round($maxUploadKB / 1024, 1) . 'MB. Para aumentar, edite o php.ini do Herd (veja HERD_PHP_CONFIG.md).',
+            'caption.max' => 'A legenda não pode ter mais de 500 caracteres.',
         ]);
 
         $today = Carbon::today();
         
-        // Verificar se o usuário já postou hoje
-        $existingMeme = Meme::where('user_id', Auth::id())
-            ->whereDate('meme_date', $today)
-            ->first();
-
-        if ($existingMeme) {
-            return redirect()->back()->withErrors(['media' => 'Você já postou um meme hoje!']);
+        if (!$request->hasFile('media')) {
+            return redirect()->back()->withErrors(['media' => 'Nenhum arquivo foi enviado.']);
         }
 
         $file = $request->file('media');
-        $isVideo = in_array($file->getMimeType(), ['video/mp4', 'video/avi', 'video/quicktime', 'video/webm']);
-        $type = $isVideo ? 'video' : 'image';
+        
+        if (!$file || !$file->isValid()) {
+            return redirect()->back()->withErrors(['media' => 'O arquivo enviado é inválido.']);
+        }
+        $mimeType = $file->getMimeType();
+        
+        // Determinar o tipo de mídia
+        if (str_starts_with($mimeType, 'video/')) {
+            $type = 'video';
+        } elseif (str_starts_with($mimeType, 'audio/')) {
+            $type = 'audio';
+        } else {
+            $type = 'image';
+        }
+        
         $path = $file->store('memes', 'public');
 
         $meme = Meme::create([
@@ -125,6 +181,14 @@ class MemeController extends Controller
             'caption' => $validated['caption'] ?? null,
             'meme_date' => $today,
         ]);
+
+        // Registrar atividade
+        $activityService = new \App\Services\ActivityService();
+        $activityService->recordMemeCreated(Auth::user(), $meme);
+
+        // Verificar badges
+        $badgeService = new \App\Services\BadgeService();
+        $badgeService->checkAndAwardBadges(Auth::user(), 'memes_count');
 
         return redirect()->back()->with('message', 'Meme postado com sucesso!');
     }
@@ -161,16 +225,71 @@ class MemeController extends Controller
         }
 
         $meme->refresh();
-        $votesByEmoji = $meme->votes()->selectRaw('emoji, count(*) as count')
-            ->groupBy('emoji')
-            ->get()
-            ->pluck('count', 'emoji')
-            ->toArray();
+        $meme->load(['votes.user.selectedBadge']);
+        
+        // Agrupar votos por emoji com informações dos usuários
+        $votesByEmoji = [];
+        $allVotes = $meme->votes;
+        foreach ($allVotes as $vote) {
+            if (!isset($votesByEmoji[$vote->emoji])) {
+                $votesByEmoji[$vote->emoji] = [
+                    'count' => 0,
+                    'users' => [],
+                ];
+            }
+            $votesByEmoji[$vote->emoji]['count']++;
+            $votesByEmoji[$vote->emoji]['users'][] = [
+                'id' => $vote->user->id,
+                'name' => $vote->user->name,
+                'avatar' => $vote->user->avatar ? Storage::url($vote->user->avatar) : null,
+                'selected_badge' => $vote->user->selectedBadge ? [
+                    'id' => $vote->user->selectedBadge->id,
+                    'name' => $vote->user->selectedBadge->name,
+                    'icon' => $vote->user->selectedBadge->icon,
+                    'color' => $vote->user->selectedBadge->color,
+                ] : null,
+            ];
+        }
 
         return response()->json([
             'total_votes' => $meme->total_votes,
             'user_vote' => $meme->getUserVote($userId)?->emoji,
             'votes_by_emoji' => $votesByEmoji,
+        ]);
+    }
+
+    public function storeComment(Request $request, Meme $meme)
+    {
+        $validated = $request->validate([
+            'content' => 'required|string|min:3|max:500',
+        ]);
+
+        $comment = MemeComment::create([
+            'meme_id' => $meme->id,
+            'user_id' => Auth::id(),
+            'content' => $validated['content'],
+        ]);
+
+        $comment->load('user.selectedBadge');
+
+        return response()->json([
+            'comment' => [
+                'id' => $comment->id,
+                'content' => $comment->content,
+                'created_at' => $comment->created_at,
+                'user' => [
+                    'id' => $comment->user->id,
+                    'name' => $comment->user->name,
+                    'avatar' => $comment->user->avatar ? Storage::url($comment->user->avatar) : null,
+                    'selected_badge' => $comment->user->selectedBadge ? [
+                        'id' => $comment->user->selectedBadge->id,
+                        'name' => $comment->user->selectedBadge->name,
+                        'icon' => $comment->user->selectedBadge->icon,
+                        'color' => $comment->user->selectedBadge->color,
+                    ] : null,
+                ],
+            ],
+            'comments_count' => $meme->fresh()->comments()->count(),
         ]);
     }
 
@@ -196,6 +315,10 @@ class MemeController extends Controller
                 'won_date' => $yesterday,
                 'votes_count' => $yesterdayMemes->total_votes,
             ]);
+
+            // Verificar badge de Hall da Fama
+            $badgeService = new \App\Services\BadgeService();
+            $badgeService->checkAndAwardBadges($yesterdayMemes->user, 'hall_of_fame');
         }
 
         return response()->json(['message' => 'Vencedor processado']);

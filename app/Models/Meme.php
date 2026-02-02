@@ -35,6 +35,11 @@ class Meme extends Model
         return $this->hasMany(MemeVote::class);
     }
 
+    public function comments(): HasMany
+    {
+        return $this->hasMany(MemeComment::class)->orderBy('created_at', 'asc');
+    }
+
     public function hasVotedBy(int $userId): bool
     {
         return $this->votes()->where('user_id', $userId)->exists();

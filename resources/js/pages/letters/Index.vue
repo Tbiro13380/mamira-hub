@@ -3,6 +3,8 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { Mail, Lock, Calendar, User, Heart, MessageSquare, Send, Trash2 } from 'lucide-vue-next';
 import Heading from '@/components/Heading.vue';
 import UserBadges from '@/components/UserBadges.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useInitials } from '@/composables/useInitials';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -11,6 +13,8 @@ import { create } from '@/routes/letters/index';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
+
+const { getInitials } = useInitials();
 
 type UserBadge = {
     id: number;
@@ -26,6 +30,7 @@ type Comment = {
     user: {
         id: number;
         name: string;
+        avatar?: string | null;
         selected_badge?: UserBadge | null;
     };
 };
@@ -41,6 +46,7 @@ type Letter = {
     user: {
         id: number;
         name: string;
+        avatar?: string | null;
         selected_badge?: UserBadge | null;
     };
     likes_count: number;
@@ -216,7 +222,12 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 </div>
                                 <div class="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                                     <div class="flex items-center gap-2">
-                                        <User class="h-4 w-4" />
+                                        <Avatar class="h-6 w-6">
+                                            <AvatarImage v-if="letter.user.avatar" :src="letter.user.avatar" :alt="letter.user.name" />
+                                            <AvatarFallback class="rounded-full text-xs">
+                                                {{ getInitials(letter.user.name) }}
+                                            </AvatarFallback>
+                                        </Avatar>
                                         <span>{{ letter.user.name }}</span>
                                         <UserBadges v-if="letter.user.selected_badge" :badge="letter.user.selected_badge" />
                                     </div>
@@ -289,6 +300,12 @@ const breadcrumbs: BreadcrumbItem[] = [
                                     :key="comment.id"
                                     class="flex gap-3 p-3 rounded-lg bg-muted/50"
                                 >
+                                    <Avatar class="h-8 w-8 shrink-0">
+                                        <AvatarImage v-if="comment.user.avatar" :src="comment.user.avatar" :alt="comment.user.name" />
+                                        <AvatarFallback class="rounded-full text-xs">
+                                            {{ getInitials(comment.user.name) }}
+                                        </AvatarFallback>
+                                    </Avatar>
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                                             <span class="text-sm font-medium">{{ comment.user.name }}</span>

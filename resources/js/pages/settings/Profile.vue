@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form, Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import DeleteUser from '@/components/DeleteUser.vue';
 import Heading from '@/components/Heading.vue';
@@ -7,11 +7,15 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
 import { type BreadcrumbItem } from '@/types';
+import { useInitials } from '@/composables/useInitials';
+import { ref } from 'vue';
+import { X, Upload } from 'lucide-vue-next';
 
 type Props = {
     mustVerifyEmail: boolean;
@@ -29,6 +33,80 @@ const breadcrumbItems: BreadcrumbItem[] = [
 
 const page = usePage();
 const user = page.props.auth.user;
+const { getInitials } = useInitials();
+
+const avatarPreview = ref<string | null>(user.avatar || null);
+const avatarFile = ref<File | null>(null);
+
+const handleAvatarChange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    if (target.files && target.files[0]) {
+        avatarFile.value = target.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            avatarPreview.value = e.target?.result as string;
+        };
+        reader.readAsDataURL(avatarFile.value);
+    }
+};
+
+const removeAvatar = () => {
+    avatarFile.value = null;
+    avatarPreview.value = user.avatar || null;
+    const input = document.getElementById('avatar') as HTMLInputElement;
+    if (input) {
+        input.value = '';
+    }
+};
+
+const formErrors = ref<Record<string, string>>({});
+const isProcessing = ref(false);
+const recentlySuccessful = ref(false);
+
+const submitForm = () => {
+    formErrors.value = {};
+    isProcessing.value = true;
+    recentlySuccessful.value = false;
+    
+    const formData = new FormData();
+    
+    // Adicionar dados do formulário
+    const nameInput = document.getElementById('name') as HTMLInputElement;
+    const emailInput = document.getElementById('email') as HTMLInputElement;
+    
+    formData.append('name', nameInput.value);
+    formData.append('email', emailInput.value);
+    
+    // Adicionar avatar se houver
+    if (avatarFile.value) {
+        formData.append('avatar', avatarFile.value);
+    }
+    
+    // Enviar usando router do Inertia (PATCH)
+    router.patch(ProfileController.update.form().action, formData, {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: (page) => {
+            isProcessing.value = false;
+            recentlySuccessful.value = true;
+            // Atualizar preview com a nova URL do avatar
+            if (avatarFile.value) {
+                avatarFile.value = null;
+            }
+            // Atualizar preview com o avatar do usuário atualizado
+            if (page.props.auth?.user?.avatar) {
+                avatarPreview.value = page.props.auth.user.avatar;
+            }
+            setTimeout(() => {
+                recentlySuccessful.value = false;
+            }, 2000);
+        },
+        onError: (errors) => {
+            isProcessing.value = false;
+            formErrors.value = errors as Record<string, string>;
+        },
+    });
+};
 </script>
 
 <template>
@@ -45,13 +123,48 @@ const user = page.props.auth.user;
                     description="Atualize seu nome e endereço de email"
                 />
 
-                <Form
-                    v-bind="ProfileController.update.form()"
+                <form
+                    @submit.prevent="submitForm"
                     class="space-y-6"
-                    v-slot="{ errors, processing, recentlySuccessful }"
                 >
+                    <!-- Avatar Upload -->
                     <div class="grid gap-2">
-                        <Label for="name">Name</Label>
+                        <Label for="avatar">Foto de Perfil</Label>
+                        <div class="flex items-center gap-4">
+                            <Avatar class="h-20 w-20 overflow-hidden rounded-full">
+                                <AvatarImage v-if="avatarPreview" :src="avatarPreview" :alt="user.name" />
+                                <AvatarFallback class="rounded-full text-lg">
+                                    {{ getInitials(user.name) }}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div class="flex-1">
+                                <Input
+                                    id="avatar"
+                                    type="file"
+                                    accept="image/*"
+                                    @change="handleAvatarChange"
+                                    class="cursor-pointer"
+                                />
+                                <p class="text-xs text-muted-foreground mt-1">
+                                    Formatos aceitos: JPEG, PNG, JPG, GIF, WEBP. Tamanho máximo: 2MB
+                                </p>
+                                <InputError class="mt-2" :message="formErrors.avatar" />
+                            </div>
+                            <Button
+                                v-if="avatarFile || (avatarPreview && avatarPreview !== user.avatar)"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="removeAvatar"
+                            >
+                                <X class="h-4 w-4 mr-2" />
+                                Remover
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="name">Nome</Label>
                         <Input
                             id="name"
                             class="mt-1 block w-full"
@@ -61,7 +174,7 @@ const user = page.props.auth.user;
                             autocomplete="name"
                             placeholder="Nome completo"
                         />
-                        <InputError class="mt-2" :message="errors.name" />
+                        <InputError class="mt-2" :message="formErrors.name" />
                     </div>
 
                     <div class="grid gap-2">
@@ -76,7 +189,7 @@ const user = page.props.auth.user;
                             autocomplete="username"
                             placeholder="Endereço de email"
                         />
-                        <InputError class="mt-2" :message="errors.email" />
+                        <InputError class="mt-2" :message="formErrors.email" />
                     </div>
 
                     <div v-if="mustVerifyEmail && !user.email_verified_at">
@@ -101,11 +214,12 @@ const user = page.props.auth.user;
 
                     <div class="flex items-center gap-4">
                         <Button
-                            :disabled="processing"
+                            type="submit"
+                            :disabled="isProcessing"
                             data-test="update-profile-button"
-                            >Salvar</Button
+                            >{{ isProcessing ? 'Salvando...' : 'Salvar' }}</Button
                         >
-
+                        
                         <Transition
                             enter-active-class="transition ease-in-out"
                             enter-from-class="opacity-0"
@@ -114,13 +228,13 @@ const user = page.props.auth.user;
                         >
                             <p
                                 v-show="recentlySuccessful"
-                                class="text-sm text-neutral-600"
+                                class="text-sm text-green-600"
                             >
                                 Salvo!
                             </p>
                         </Transition>
                     </div>
-                </Form>
+                </form>
             </div>
 
             <DeleteUser />

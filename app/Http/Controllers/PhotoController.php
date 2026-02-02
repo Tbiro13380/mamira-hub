@@ -25,6 +25,7 @@ class PhotoController extends Controller
                     'user' => [
                         'id' => $photo->user->id,
                         'name' => $photo->user->name,
+                        'avatar' => $photo->user->avatar ? Storage::url($photo->user->avatar) : null,
                         'selected_badge' => $photo->user->selectedBadge ? [
                             'id' => $photo->user->selectedBadge->id,
                             'name' => $photo->user->selectedBadge->name,
@@ -54,6 +55,14 @@ class PhotoController extends Controller
             'path' => $path,
             'caption' => $validated['caption'] ?? null,
         ]);
+
+        // Registrar atividade
+        $activityService = new \App\Services\ActivityService();
+        $activityService->recordPhotoCreated(Auth::user(), $photo);
+
+        // Verificar badges
+        $badgeService = new \App\Services\BadgeService();
+        $badgeService->checkAndAwardBadges(Auth::user(), 'photos_count');
 
         return redirect()->back()->with('message', 'Foto enviada com sucesso!');
     }

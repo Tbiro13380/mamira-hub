@@ -46,6 +46,7 @@ class LetterController extends Controller
                     'user' => [
                         'id' => $letter->user->id,
                         'name' => $letter->user->name,
+                        'avatar' => $letter->user->avatar ? Storage::url($letter->user->avatar) : null,
                         'selected_badge' => $letter->user->selectedBadge ? [
                             'id' => $letter->user->selectedBadge->id,
                             'name' => $letter->user->selectedBadge->name,
@@ -64,6 +65,7 @@ class LetterController extends Controller
                             'user' => [
                                 'id' => $comment->user->id,
                                 'name' => $comment->user->name,
+                                'avatar' => $comment->user->avatar ? Storage::url($comment->user->avatar) : null,
                                 'selected_badge' => $comment->user->selectedBadge ? [
                                     'id' => $comment->user->selectedBadge->id,
                                     'name' => $comment->user->selectedBadge->name,
@@ -113,6 +115,9 @@ class LetterController extends Controller
         $badgeService = new BadgeService();
         $badgeService->checkAndAwardBadges($user, 'letters_count');
         
+        // Verificar se alcançou o 1º lugar no leaderboard
+        $activityService->checkAndRecordLeaderboardFirstPlace();
+        
         // Verificar badge Coruja (carta de madrugada)
         $badgeService->checkAndAwardBadges($user, 'night_owl', [
             'created_at' => $letter->created_at,
@@ -156,6 +161,8 @@ class LetterController extends Controller
         if ($liked) {
             $activityService = new ActivityService();
             $activityService->recordLetterLiked(Auth::user(), $letter, $letter->likes_count);
+            // Verificar se o autor alcançou o 1º lugar
+            $activityService->checkAndRecordLeaderboardFirstPlace();
         }
 
         return response()->json([
@@ -186,6 +193,10 @@ class LetterController extends Controller
         // Verificar badges do usuário que comentou
         $badgeService = new BadgeService();
         $badgeService->checkAndAwardBadges($user, 'comments_count');
+        
+        // Verificar se alcançou o 1º lugar no leaderboard
+        $activityService = new ActivityService();
+        $activityService->checkAndRecordLeaderboardFirstPlace();
 
         $comment->load('user');
 
@@ -199,6 +210,7 @@ class LetterController extends Controller
                 'user' => [
                     'id' => $comment->user->id,
                     'name' => $comment->user->name,
+                    'avatar' => $comment->user->avatar ? Storage::url($comment->user->avatar) : null,
                     'selected_badge' => $comment->user->selectedBadge ? [
                         'id' => $comment->user->selectedBadge->id,
                         'name' => $comment->user->selectedBadge->name,

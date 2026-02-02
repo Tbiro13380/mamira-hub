@@ -26,6 +26,7 @@ class ActivityController extends Controller
                     'user' => [
                         'id' => $activity->user->id,
                         'name' => $activity->user->name,
+                        'avatar' => $activity->user->avatar ? \Illuminate\Support\Facades\Storage::url($activity->user->avatar) : null,
                         'selected_badge' => $activity->user->selectedBadge ? [
                             'id' => $activity->user->selectedBadge->id,
                             'name' => $activity->user->selectedBadge->name,
