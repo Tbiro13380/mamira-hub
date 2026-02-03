@@ -14,6 +14,7 @@ export default defineConfig({
         tailwindcss(),
         wayfinder({
             formVariants: true,
+            generateOnBuild: false,
         }),
         vue({
             template: {
