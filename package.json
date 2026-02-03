@@ -3,8 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "build:ssr": "vite build && vite build --ssr",
+        "build": "npm run wayfinder:generate || true && vite build",
+        "build:ssr": "npm run wayfinder:generate || true && vite build && vite build --ssr",
+        "wayfinder:generate": "php artisan wayfinder:generate --with-form || echo 'Wayfinder generation skipped (PHP not available)'",
         "dev": "vite",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
