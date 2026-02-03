@@ -6,6 +6,7 @@ import UserBadges from '@/components/UserBadges.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/vue3';
@@ -137,6 +138,8 @@ const showEmojiModal = ref<number | null>(null);
 const showVotesModal = ref<{ memeId: number; emoji: string } | null>(null);
 const showComments = ref<Record<number, boolean>>({});
 const commentInputs = ref<Record<number, string>>({});
+const selectedMedia = ref<{ url: string; type: 'image' | 'video' | 'audio' } | null>(null);
+const isMediaModalOpen = ref(false);
 
 const currentVotesUsers = computed(() => {
     if (!showVotesModal.value) return [];
@@ -317,6 +320,16 @@ const formatTimeAgo = (dateString: string): string => {
     const diffInDays = Math.floor(diffInHours / 24);
     return `há ${diffInDays}d`;
 };
+
+const openMediaModal = (url: string, type: 'image' | 'video' | 'audio') => {
+    selectedMedia.value = { url, type };
+    isMediaModalOpen.value = true;
+};
+
+const closeMediaModal = () => {
+    isMediaModalOpen.value = false;
+    selectedMedia.value = null;
+};
 </script>
 
 <template>
@@ -363,16 +376,26 @@ const formatTimeAgo = (dateString: string): string => {
                                     v-if="meme.type === 'image'"
                                     :src="meme.media_path"
                                     :alt="meme.caption || 'Meme'"
-                                    class="w-full h-64 object-cover rounded-lg"
+                                    class="w-full h-64 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                    @click="openMediaModal(meme.media_path, 'image')"
                                 />
-                                <video
+                                <div
                                     v-else-if="meme.type === 'video'"
-                                    :src="meme.media_path"
-                                    controls
-                                    class="w-full h-64 object-cover rounded-lg"
+                                    class="relative cursor-pointer"
+                                    @click="openMediaModal(meme.media_path, 'video')"
                                 >
-                                    Seu navegador não suporta vídeos.
-                                </video>
+                                    <video
+                                        :src="meme.media_path"
+                                        class="w-full h-64 object-cover rounded-lg hover:opacity-90 transition-opacity pointer-events-none"
+                                    >
+                                        Seu navegador não suporta vídeos.
+                                    </video>
+                                    <div class="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                                        <div class="bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                                            Clique para ver em tela cheia
+                                        </div>
+                                    </div>
+                                </div>
                                 <audio
                                     v-else-if="meme.type === 'audio'"
                                     :src="meme.media_path"
@@ -381,7 +404,7 @@ const formatTimeAgo = (dateString: string): string => {
                                 >
                                     Seu navegador não suporta áudio.
                                 </audio>
-                                <div v-if="meme.is_winner" class="absolute top-2 right-2">
+                                <div v-if="meme.is_winner" class="absolute top-2 right-2 z-10">
                                     <div class="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                                         <Trophy class="h-3 w-3" />
                                         Vencedor
@@ -389,7 +412,7 @@ const formatTimeAgo = (dateString: string): string => {
                                 </div>
                             </div>
                             <div v-if="meme.caption" class="mb-3">
-                                <p class="text-sm text-foreground">{{ meme.caption }}</p>
+                                <p class="text-sm text-foreground whitespace-pre-wrap break-words">{{ meme.caption }}</p>
                             </div>
                             <div class="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
                                 <span>{{ meme.user.name }}</span>
@@ -502,16 +525,26 @@ const formatTimeAgo = (dateString: string): string => {
                                     v-if="entry.meme.type === 'image'"
                                     :src="entry.meme.media_path"
                                     :alt="entry.meme.caption || 'Meme'"
-                                    class="w-full h-48 object-cover rounded-lg"
+                                    class="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                    @click="openMediaModal(entry.meme.media_path, 'image')"
                                 />
-                                <video
+                                <div
                                     v-else-if="entry.meme.type === 'video'"
-                                    :src="entry.meme.media_path"
-                                    controls
-                                    class="w-full h-48 object-cover rounded-lg"
+                                    class="relative cursor-pointer"
+                                    @click="openMediaModal(entry.meme.media_path, 'video')"
                                 >
-                                    Seu navegador não suporta vídeos.
-                                </video>
+                                    <video
+                                        :src="entry.meme.media_path"
+                                        class="w-full h-48 object-cover rounded-lg hover:opacity-90 transition-opacity pointer-events-none"
+                                    >
+                                        Seu navegador não suporta vídeos.
+                                    </video>
+                                    <div class="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                                        <div class="bg-black/50 text-white px-2 py-1 rounded-full text-xs">
+                                            Ver em tela cheia
+                                        </div>
+                                    </div>
+                                </div>
                                 <audio
                                     v-else-if="entry.meme.type === 'audio'"
                                     :src="entry.meme.media_path"
@@ -520,14 +553,14 @@ const formatTimeAgo = (dateString: string): string => {
                                 >
                                     Seu navegador não suporta áudio.
                                 </audio>
-                                <div class="absolute top-2 right-2">
+                                <div class="absolute top-2 right-2 z-10">
                                     <div class="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-bold">
                                         🏆
                                     </div>
                                 </div>
                             </div>
                             <div v-if="entry.meme.caption" class="mb-2">
-                                <p class="text-xs text-foreground line-clamp-2">{{ entry.meme.caption }}</p>
+                                <p class="text-xs text-foreground whitespace-pre-wrap break-words">{{ entry.meme.caption }}</p>
                             </div>
                             <div class="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
                                 <span>{{ entry.meme.user.name }}</span>
@@ -699,6 +732,28 @@ const formatTimeAgo = (dateString: string): string => {
                 </div>
             </div>
         </div>
+
+        <!-- Modal para mídia (imagem/vídeo) -->
+        <Dialog :open="isMediaModalOpen" @update:open="(open) => !open && closeMediaModal()">
+            <DialogContent class="max-w-7xl w-full p-0 bg-transparent/95 border-0 shadow-2xl">
+                <div class="relative w-full h-full flex items-center justify-center p-4">
+                    <img
+                        v-if="selectedMedia?.type === 'image'"
+                        :src="selectedMedia.url"
+                        alt="Meme em tamanho completo"
+                        class="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    />
+                    <video
+                        v-else-if="selectedMedia?.type === 'video'"
+                        :src="selectedMedia.url"
+                        controls
+                        class="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    >
+                        Seu navegador não suporta vídeos.
+                    </video>
+                </div>
+            </DialogContent>
+        </Dialog>
     </AppLayout>
 </template>
 

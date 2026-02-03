@@ -6,6 +6,7 @@ import UserBadges from '@/components/UserBadges.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/vue3';
@@ -51,6 +52,8 @@ const photoFile = ref<File | null>(null);
 const photoPreview = ref<string | null>(null);
 const caption = ref('');
 const isUploading = ref(false);
+const selectedImage = ref<string | null>(null);
+const isImageModalOpen = ref(false);
 
 const handlePhotoChange = (event: Event) => {
     const target = event.target as HTMLInputElement;
@@ -103,6 +106,16 @@ const deletePhoto = (photo: Photo) => {
         preserveScroll: true,
     });
 };
+
+const openImageModal = (imageUrl: string) => {
+    selectedImage.value = imageUrl;
+    isImageModalOpen.value = true;
+};
+
+const closeImageModal = () => {
+    isImageModalOpen.value = false;
+    selectedImage.value = null;
+};
 </script>
 
 <template>
@@ -142,20 +155,22 @@ const deletePhoto = (photo: Photo) => {
                         <img
                             :src="photo.path"
                             :alt="photo.caption || 'Foto'"
-                            class="w-full h-64 object-cover"
+                            class="w-full h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            @click="openImageModal(photo.path)"
                         />
-                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
                             <Button
                                 v-if="photo.user.id === currentUserId"
                                 variant="destructive"
                                 size="sm"
-                                @click="deletePhoto(photo)"
+                                @click.stop="deletePhoto(photo)"
+                                class="pointer-events-auto"
                             >
                                 <Trash2 class="h-4 w-4" />
                             </Button>
                         </div>
                         <div v-if="photo.caption" class="p-3">
-                            <p class="text-sm text-foreground mb-1">{{ photo.caption }}</p>
+                            <p class="text-sm text-foreground mb-1 whitespace-pre-wrap break-words">{{ photo.caption }}</p>
                             <div class="flex items-center gap-2 text-xs text-muted-foreground">
                                 <User class="h-3 w-3" />
                                 <span>{{ photo.user.name }}</span>
@@ -232,6 +247,20 @@ const deletePhoto = (photo: Photo) => {
                 </div>
             </div>
         </div>
+
+        <!-- Modal para imagem -->
+        <Dialog :open="isImageModalOpen" @update:open="(open) => !open && closeImageModal()">
+            <DialogContent class="max-w-7xl w-full p-0 bg-transparent/95 border-0 shadow-2xl">
+                <div class="relative w-full h-full flex items-center justify-center p-4">
+                    <img
+                        v-if="selectedImage"
+                        :src="selectedImage"
+                        alt="Foto em tamanho completo"
+                        class="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    />
+                </div>
+            </DialogContent>
+        </Dialog>
     </AppLayout>
 </template>
 

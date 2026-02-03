@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/composables/useInitials';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { create } from '@/routes/letters/index';
@@ -67,6 +68,8 @@ const props = defineProps<Props>();
 const localLetters = ref<Letter[]>(props.letters);
 const commentInputs = ref<Record<number, string>>({});
 const showComments = ref<Record<number, boolean>>({});
+const selectedImage = ref<string | null>(null);
+const isImageModalOpen = ref(false);
 
 const toggleLike = (letter: Letter) => {
     const letterIndex = localLetters.value.findIndex((l) => l.id === letter.id);
@@ -154,6 +157,16 @@ const deleteLetter = (letter: Letter) => {
             }
         },
     });
+};
+
+const openImageModal = (imageUrl: string) => {
+    selectedImage.value = imageUrl;
+    isImageModalOpen.value = true;
+};
+
+const closeImageModal = () => {
+    isImageModalOpen.value = false;
+    selectedImage.value = null;
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -258,10 +271,11 @@ const breadcrumbs: BreadcrumbItem[] = [
                             <img
                                 :src="letter.image"
                                 :alt="letter.title || 'Imagem da carta'"
-                                class="w-full rounded-lg object-cover max-h-96"
+                                class="w-full rounded-lg object-cover max-h-96 cursor-pointer hover:opacity-90 transition-opacity"
+                                @click="openImageModal(letter.image!)"
                             />
                         </div>
-                        <p class="text-muted-foreground line-clamp-3 mb-4">
+                        <p class="text-muted-foreground whitespace-pre-wrap break-words mb-4">
                             {{ letter.content }}
                         </p>
                         <div class="flex items-center gap-4 pt-4 border-t border-sidebar-border/70">
@@ -345,6 +359,20 @@ const breadcrumbs: BreadcrumbItem[] = [
                 </div>
             </div>
         </div>
+
+        <!-- Modal para imagem -->
+        <Dialog :open="isImageModalOpen" @update:open="(open) => !open && closeImageModal()">
+            <DialogContent class="max-w-7xl w-full p-0 bg-transparent/95 border-0 shadow-2xl">
+                <div class="relative w-full h-full flex items-center justify-center p-4">
+                    <img
+                        v-if="selectedImage"
+                        :src="selectedImage"
+                        alt="Imagem da carta em tamanho completo"
+                        class="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    />
+                </div>
+            </DialogContent>
+        </Dialog>
     </AppLayout>
 </template>
 
