@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
+import { Eye, EyeOff } from 'lucide-vue-next';
+import { ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
@@ -9,6 +11,9 @@ import { Spinner } from '@/components/ui/spinner';
 import AuthBase from '@/layouts/AuthLayout.vue';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
+
+const showPassword = ref(false);
+const showPasswordConfirmation = ref(false);
 </script>
 
 <template>
@@ -56,29 +61,55 @@ import { store } from '@/routes/register';
 
                 <div class="grid gap-2">
                     <Label for="password">Senha</Label>
-                    <Input
-                        id="password"
-                        type="password"
-                        required
-                        :tabindex="3"
-                        autocomplete="new-password"
-                        name="password"
-                        placeholder="Senha"
-                    />
+                    <div class="relative">
+                        <Input
+                            id="password"
+                            :type="showPassword ? 'text' : 'password'"
+                            required
+                            :tabindex="3"
+                            autocomplete="new-password"
+                            name="password"
+                            placeholder="Senha"
+                            class="pr-10"
+                        />
+                        <button
+                            type="button"
+                            @click="showPassword = !showPassword"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-sm"
+                            tabindex="-1"
+                            aria-label="Mostrar senha"
+                        >
+                            <Eye v-if="!showPassword" class="h-4 w-4" />
+                            <EyeOff v-else class="h-4 w-4" />
+                        </button>
+                    </div>
                     <InputError :message="errors.password" />
                 </div>
 
                 <div class="grid gap-2">
                     <Label for="password_confirmation">Confirmar senha</Label>
-                    <Input
-                        id="password_confirmation"
-                        type="password"
-                        required
-                        :tabindex="4"
-                        autocomplete="new-password"
-                        name="password_confirmation"
-                        placeholder="Confirmar senha"
-                    />
+                    <div class="relative">
+                        <Input
+                            id="password_confirmation"
+                            :type="showPasswordConfirmation ? 'text' : 'password'"
+                            required
+                            :tabindex="4"
+                            autocomplete="new-password"
+                            name="password_confirmation"
+                            placeholder="Confirmar senha"
+                            class="pr-10"
+                        />
+                        <button
+                            type="button"
+                            @click="showPasswordConfirmation = !showPasswordConfirmation"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-sm"
+                            tabindex="-1"
+                            aria-label="Mostrar senha"
+                        >
+                            <Eye v-if="!showPasswordConfirmation" class="h-4 w-4" />
+                            <EyeOff v-else class="h-4 w-4" />
+                        </button>
+                    </div>
                     <InputError :message="errors.password_confirmation" />
                 </div>
 

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
+import { Eye, EyeOff } from 'lucide-vue-next';
+import { ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
@@ -11,6 +13,8 @@ import AuthBase from '@/layouts/AuthLayout.vue';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
+
+const showPassword = ref(false);
 
 defineProps<{
     status?: string;
@@ -67,15 +71,28 @@ defineProps<{
                             Esqueceu sua senha?
                         </TextLink>
                     </div>
-                    <Input
-                        id="password"
-                        type="password"
-                        name="password"
-                        required
-                        :tabindex="2"
-                        autocomplete="current-password"
-                        placeholder="Senha"
-                    />
+                    <div class="relative">
+                        <Input
+                            id="password"
+                            :type="showPassword ? 'text' : 'password'"
+                            name="password"
+                            required
+                            :tabindex="2"
+                            autocomplete="current-password"
+                            placeholder="Senha"
+                            class="pr-10"
+                        />
+                        <button
+                            type="button"
+                            @click="showPassword = !showPassword"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-sm"
+                            tabindex="-1"
+                            aria-label="Mostrar senha"
+                        >
+                            <Eye v-if="!showPassword" class="h-4 w-4" />
+                            <EyeOff v-else class="h-4 w-4" />
+                        </button>
+                    </div>
                     <InputError :message="errors.password" />
                 </div>
 

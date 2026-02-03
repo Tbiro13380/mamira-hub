@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
+import { Link, usePage, router } from '@inertiajs/vue3';
+import { BookOpen, Folder, LayoutGrid, Menu, Search, Bell } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
@@ -47,8 +47,20 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const page = usePage();
-const auth = computed(() => page.props.auth);
+const auth = computed(() => page.props.auth as { user?: any } | null);
 const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
+
+// Debug: verificar se auth.user existe
+if (auth.value?.user) {
+    console.log('User is logged in:', auth.value.user.name);
+}
+
+const unreadCount = computed(() => {
+    const count = (page.props as any).unreadNotificationsCount;
+    const result = typeof count === 'number' ? count : 0;
+    console.log('Unread notifications count:', result);
+    return result;
+});
 
 const activeItemStyles =
     'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
@@ -122,6 +134,27 @@ const rightNavItems: NavItem[] = [
                                             class="h-5 w-5"
                                         />
                                         {{ item.title }}
+                                    </Link>
+                                    
+                                    <!-- Link de Notificações no Mobile -->
+                                    <Link
+                                        href="/notificacoes"
+                                        class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent"
+                                        :class="
+                                            whenCurrentUrl(
+                                                '/notificacoes',
+                                                activeItemStyles,
+                                            )
+                                        "
+                                    >
+                                        <Bell class="h-5 w-5" />
+                                        Notificações
+                                        <span
+                                            v-if="unreadCount > 0"
+                                            class="ml-auto rounded-full bg-destructive px-2 py-0.5 text-xs font-bold text-destructive-foreground"
+                                        >
+                                            {{ unreadCount > 99 ? '99+' : unreadCount }}
+                                        </span>
                                     </Link>
                                 </nav>
                                 <div class="flex flex-col space-y-4">
@@ -238,7 +271,25 @@ const rightNavItems: NavItem[] = [
                         </div>
                     </div>
 
-                    <DropdownMenu>
+                    <!-- Botão de Notificações - Fora do div interno para garantir visibilidade -->
+                    <Button
+                        v-if="auth?.user"
+                        variant="ghost"
+                        size="icon"
+                        class="relative h-9 w-9 cursor-pointer hover:bg-accent"
+                        @click="router.visit('/notificacoes')"
+                        title="Notificações"
+                    >
+                        <Bell class="h-5 w-5" />
+                        <span
+                            v-if="unreadCount > 0"
+                            class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-background z-10"
+                        >
+                            {{ unreadCount > 99 ? '99+' : unreadCount }}
+                        </span>
+                    </Button>
+
+                    <DropdownMenu v-if="auth?.user">
                         <DropdownMenuTrigger :as-child="true">
                             <Button
                                 variant="ghost"

@@ -148,6 +148,10 @@ class LetterController extends Controller
             ]);
             $liked = true;
 
+            // Criar notificação para o autor da carta
+            $notificationService = new \App\Services\NotificationService();
+            $notificationService->notifyLikeOnLetter($letter, Auth::user());
+
             // Verificar badges do autor da carta
             $badgeService = new BadgeService();
             $badgeService->checkAndAwardBadges($letter->user, 'likes_received');
@@ -189,6 +193,10 @@ class LetterController extends Controller
             'letter_id' => $letter->id,
             'content' => $validated['content'],
         ]);
+
+        // Criar notificação para o autor da carta
+        $notificationService = new \App\Services\NotificationService();
+        $notificationService->notifyCommentOnLetter($letter, $user);
 
         // Verificar badges do usuário que comentou
         $badgeService = new BadgeService();

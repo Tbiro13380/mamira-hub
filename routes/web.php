@@ -74,8 +74,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('quizzes')->name('quizzes.')->group(function () {
         Route::get('/', [QuizController::class, 'index'])->name('index');
         Route::get('criar', [QuizController::class, 'create'])->name('create');
+        Route::get('{quiz}', [QuizController::class, 'show'])->name('show');
         Route::post('/', [QuizController::class, 'store'])->name('store');
         Route::post('{quiz}/submit', [QuizController::class, 'submit'])->name('submit');
+    });
+
+    // Notifications
+    Route::prefix('notificacoes')->name('notifications.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index'])->name('index');
+        Route::post('{notification}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('read');
+        Route::post('read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('read-all');
+        Route::get('unread-count', [\App\Http\Controllers\NotificationController::class, 'getUnreadCount'])->name('unread-count');
+    });
+
+    // Chat
+    Route::prefix('chat')->name('chat.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ChatController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\ChatController::class, 'store'])->name('store');
     });
 });
 

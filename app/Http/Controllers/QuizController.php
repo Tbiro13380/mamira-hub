@@ -21,62 +21,40 @@ class QuizController extends Controller
         $userId = Auth::id();
         $now = Carbon::now();
 
-        // Quiz ativo da semana atual
-        $activeQuiz = Quiz::with(['questions', 'creator.selectedBadge'])
+        // Quizzes ativos (da semana atual)
+        $activeQuizzes = Quiz::with(['creator.selectedBadge'])
             ->where('is_active', true)
             ->where('week_start_date', '<=', $now)
             ->where('week_end_date', '>=', $now)
-            ->first();
-
-        $activeQuizData = null;
-        if ($activeQuiz) {
-            $userAnswer = $activeQuiz->answers()->where('user_id', $userId)->first();
-            $hasAnswered = $userAnswer !== null;
-            
-            $activeQuizData = [
-                'id' => $activeQuiz->id,
-                'title' => $activeQuiz->title,
-                'description' => $activeQuiz->description,
-                'week_start_date' => $activeQuiz->week_start_date,
-                'week_end_date' => $activeQuiz->week_end_date,
-                'has_answered' => $hasAnswered,
-                'questions' => $hasAnswered ? $activeQuiz->questions->map(function ($q) use ($userAnswer) {
-                    return [
-                        'id' => $q->id,
-                        'question' => $q->question,
-                        'options' => $q->options,
-                        'user_answer' => $userAnswer->answers[$q->id] ?? null,
-                        'correct_answer' => $q->correct_answer,
-                    ];
-                }) : $activeQuiz->questions->map(function ($q) {
-                    return [
-                        'id' => $q->id,
-                        'question' => $q->question,
-                        'options' => $q->options,
-                    ];
-                }),
-                'creator' => [
-                    'id' => $activeQuiz->creator->id,
-                    'name' => $activeQuiz->creator->name,
-                    'avatar' => $activeQuiz->creator->avatar ? \Illuminate\Support\Facades\Storage::url($activeQuiz->creator->avatar) : null,
-                    'selected_badge' => $activeQuiz->creator->selectedBadge ? [
-                        'id' => $activeQuiz->creator->selectedBadge->id,
-                        'name' => $activeQuiz->creator->selectedBadge->name,
-                        'icon' => $activeQuiz->creator->selectedBadge->icon,
-                        'color' => $activeQuiz->creator->selectedBadge->color,
+            ->orderBy('week_start_date', 'desc')
+            ->get()
+            ->map(function ($quiz) use ($userId) {
+                $userAnswer = $quiz->answers()->where('user_id', $userId)->first();
+                return [
+                    'id' => $quiz->id,
+                    'title' => $quiz->title,
+                    'description' => $quiz->description,
+                    'week_start_date' => $quiz->week_start_date,
+                    'week_end_date' => $quiz->week_end_date,
+                    'has_answered' => $userAnswer !== null,
+                    'user_result' => $userAnswer ? [
+                        'correct_count' => $userAnswer->correct_count,
+                        'total_questions' => $userAnswer->total_questions,
+                        'is_perfect' => $userAnswer->is_perfect,
                     ] : null,
-                ],
-            ];
-
-            if ($hasAnswered) {
-                $activeQuizData['user_result'] = [
-                    'correct_count' => $userAnswer->correct_count,
-                    'total_questions' => $userAnswer->total_questions,
-                    'is_perfect' => $userAnswer->is_perfect,
-                    'time_taken_seconds' => $userAnswer->time_taken_seconds,
+                    'creator' => [
+                        'id' => $quiz->creator->id,
+                        'name' => $quiz->creator->name,
+                        'avatar' => $quiz->creator->avatar ? \Illuminate\Support\Facades\Storage::url($quiz->creator->avatar) : null,
+                        'selected_badge' => $quiz->creator->selectedBadge ? [
+                            'id' => $quiz->creator->selectedBadge->id,
+                            'name' => $quiz->creator->selectedBadge->name,
+                            'icon' => $quiz->creator->selectedBadge->icon,
+                            'color' => $quiz->creator->selectedBadge->color,
+                        ] : null,
+                    ],
                 ];
-            }
-        }
+            });
 
         // Quizzes anteriores
         $pastQuizzes = Quiz::with(['creator.selectedBadge'])
@@ -119,13 +97,80 @@ class QuizController extends Controller
             ->first();
 
         return Inertia::render('quizzes/Index', [
-            'active_quiz' => $activeQuizData,
+            'active_quizzes' => $activeQuizzes,
             'past_quizzes' => $pastQuizzes,
             'active_medal' => $activeMedal ? [
                 'quiz_title' => $activeMedal->quiz->title,
                 'earned_date' => $activeMedal->earned_date,
                 'expires_at' => $activeMedal->expires_at,
             ] : null,
+        ]);
+    }
+
+    public function show(Quiz $quiz): Response
+    {
+        $userId = Auth::id();
+        $now = Carbon::now();
+
+        // Carregar relacionamentos necessários
+        $quiz->load(['questions', 'creator.selectedBadge']);
+
+        // Verificar se o quiz está ativo (para permitir responder)
+        $isActive = $quiz->is_active && $now >= $quiz->week_start_date && $now <= $quiz->week_end_date;
+
+        $userAnswer = $quiz->answers()->where('user_id', $userId)->first();
+        $hasAnswered = $userAnswer !== null;
+
+        $quizData = [
+            'id' => $quiz->id,
+            'title' => $quiz->title,
+            'description' => $quiz->description,
+            'week_start_date' => $quiz->week_start_date,
+            'week_end_date' => $quiz->week_end_date,
+            'is_active' => $isActive,
+            'has_answered' => $hasAnswered,
+            'questions' => $hasAnswered ? $quiz->questions->map(function ($q) use ($userAnswer) {
+                return [
+                    'id' => $q->id,
+                    'question' => $q->question,
+                    'options' => $q->options,
+                    'user_answer' => $userAnswer->answers[$q->id] ?? null,
+                    'correct_answer' => $q->correct_answer,
+                ];
+            }) : $quiz->questions->map(function ($q) {
+                return [
+                    'id' => $q->id,
+                    'question' => $q->question,
+                    'options' => $q->options,
+                ];
+            }),
+            'creator' => [
+                'id' => $quiz->creator->id,
+                'name' => $quiz->creator->name,
+                'avatar' => $quiz->creator->avatar ? \Illuminate\Support\Facades\Storage::url($quiz->creator->avatar) : null,
+                'selected_badge' => $quiz->creator->selectedBadge ? [
+                    'id' => $quiz->creator->selectedBadge->id,
+                    'name' => $quiz->creator->selectedBadge->name,
+                    'icon' => $quiz->creator->selectedBadge->icon,
+                    'color' => $quiz->creator->selectedBadge->color,
+                ] : null,
+            ],
+        ];
+
+        if ($hasAnswered) {
+            $quizData['user_result'] = [
+                'correct_count' => $userAnswer->correct_count,
+                'total_questions' => $userAnswer->total_questions,
+                'is_perfect' => $userAnswer->is_perfect,
+                'time_taken_seconds' => $userAnswer->time_taken_seconds,
+            ];
+        }
+
+        // Debug: verificar se os dados estão corretos
+        \Log::info('Quiz data being sent:', $quizData);
+
+        return Inertia::render('quizzes/Show', [
+            'quiz' => $quizData,
         ]);
     }
 

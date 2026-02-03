@@ -76,9 +76,10 @@ type HallOfFameEntry = {
 };
 
 type Props = {
-    today_memes: Meme[];
+    week_memes: Meme[];
     hall_of_fame: HallOfFameEntry[];
-    today_date: string;
+    week_start: string;
+    week_end: string;
 };
 
 const page = usePage();
@@ -86,7 +87,7 @@ const currentUserId = page.props.auth.user?.id;
 
 const props = defineProps<Props>();
 
-const localMemes = ref<Meme[]>(props.today_memes);
+const localMemes = ref<Meme[]>(props.week_memes);
 
 // Observar erros da página
 watch(() => page.props.errors, (errors) => {
@@ -99,7 +100,7 @@ watch(() => page.props.errors, (errors) => {
     }
 }, { deep: true });
 
-watch(() => props.today_memes, (newMemes) => {
+watch(() => props.week_memes, (newMemes) => {
     localMemes.value = newMemes;
 }, { deep: true });
 
@@ -256,6 +257,16 @@ const voteMeme = (meme: Meme, emoji: string) => {
                 localMemes.value[memeIndex].total_votes = data.total_votes;
                 localMemes.value[memeIndex].user_vote = data.user_vote;
                 localMemes.value[memeIndex].votes_by_emoji = data.votes_by_emoji;
+                localMemes.value[memeIndex].is_winner = data.is_winner || false;
+            }
+            
+            // Atualizar is_winner de todos os memes (remover de todos e adicionar ao com mais votos)
+            localMemes.value.forEach(m => {
+                m.is_winner = false;
+            });
+            const winner = localMemes.value.sort((a, b) => b.total_votes - a.total_votes)[0];
+            if (winner && winner.total_votes > 0) {
+                winner.is_winner = true;
             }
         })
         .catch((error) => {
@@ -269,30 +280,19 @@ const toggleComments = (memeId: number) => {
 
 const addComment = (meme: Meme) => {
     const content = commentInputs.value[meme.id]?.trim();
-    if (!content) return;
+    if (!content || content.length < 3) return;
 
-    fetch(`/memes/${meme.id}/comments`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            'X-Requested-With': 'XMLHttpRequest',
+    router.post(`/memes/${meme.id}/comments`, { content }, {
+        preserveScroll: true,
+        onSuccess: (page) => {
+            // Recarregar apenas os memes para atualizar os comentários
+            router.reload({ only: ['week_memes'] });
+            commentInputs.value[meme.id] = '';
         },
-        credentials: 'same-origin',
-        body: JSON.stringify({ content }),
-    })
-        .then((response) => response.json())
-        .then((data) => {
-            const memeIndex = localMemes.value.findIndex((m) => m.id === meme.id);
-            if (memeIndex !== -1) {
-                localMemes.value[memeIndex].comments.push(data.comment);
-                localMemes.value[memeIndex].comments_count = data.comments_count;
-                commentInputs.value[meme.id] = '';
-            }
-        })
-        .catch((error) => {
-            console.error('Erro ao comentar:', error);
-        });
+        onError: (errors) => {
+            console.error('Erro ao comentar:', errors);
+        },
+    });
 };
 
 const formatTimeAgo = (dateString: string): string => {
@@ -327,7 +327,7 @@ const formatTimeAgo = (dateString: string): string => {
                 <div class="mb-6 flex items-center justify-between">
                     <Heading
                         title="The Week Mamira"
-                        :description="`Memes de hoje (${today_date})`"
+                        :description="`Memes da semana (${week_start} - ${week_end})`"
                     />
                     <Button @click="showUploadModal = true">
                         <Upload class="h-4 w-4 mr-2" />
@@ -335,12 +335,12 @@ const formatTimeAgo = (dateString: string): string => {
                     </Button>
                 </div>
 
-                <!-- Memes de Hoje -->
+                <!-- Memes da Semana -->
                 <div class="mb-8">
-                    <h2 class="text-lg font-semibold mb-4">Memes de Hoje</h2>
-                    <div v-if="today_memes.length === 0" class="rounded-xl border border-sidebar-border/70 dark:border-sidebar-border bg-background p-12 text-center">
+                    <h2 class="text-lg font-semibold mb-4">Memes da Semana</h2>
+                    <div v-if="week_memes.length === 0" class="rounded-xl border border-sidebar-border/70 dark:border-sidebar-border bg-background p-12 text-center">
                         <Image class="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 class="text-lg font-semibold mb-2">Nenhum meme ainda hoje</h3>
+                        <h3 class="text-lg font-semibold mb-2">Nenhum meme ainda esta semana</h3>
                         <p class="text-muted-foreground mb-4">
                             Seja o primeiro a postar um meme!
                         </p>

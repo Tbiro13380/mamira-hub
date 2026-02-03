@@ -28,7 +28,7 @@ import { index as activitiesIndex } from '@/routes/activities';
 import { index as statsIndex } from '@/routes/stats';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 type UserBadge = {
     id: number;
@@ -114,6 +114,11 @@ const currentUserId = page.props.auth.user?.id;
 const isAddingTear = ref(false);
 const localTears = ref(props.stats.total_tears);
 
+// Atualizar localTears quando props.stats.total_tears mudar
+watch(() => props.stats.total_tears, (newValue) => {
+    localTears.value = newValue;
+});
+
 const formatNumber = (num: number): string => {
     return new Intl.NumberFormat('pt-BR').format(num);
 };
@@ -145,23 +150,22 @@ const addTear = () => {
     if (isAddingTear.value) return;
 
     isAddingTear.value = true;
-    fetch('/estatisticas/lagrimas', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            'X-Requested-With': 'XMLHttpRequest',
+    
+    // Usar router.post do Inertia que gerencia CSRF automaticamente
+    router.post('/estatisticas/lagrimas', {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            // Recarregar apenas os dados do dashboard para atualizar o contador
+            router.reload({ only: ['stats'] });
+            isAddingTear.value = false;
         },
-        credentials: 'same-origin',
-    })
-        .then((response) => response.json())
-        .then((data) => {
-            localTears.value = data.total_tears;
+        onError: () => {
             isAddingTear.value = false;
-        })
-        .catch(() => {
+        },
+        onFinish: () => {
             isAddingTear.value = false;
-        });
+        },
+    });
 };
 </script>
 
@@ -234,10 +238,6 @@ const addTear = () => {
             <div class="rounded-xl border border-sidebar-border/70 dark:border-sidebar-border bg-background p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-semibold">Seu Progresso</h2>
-                    <Link :href="lettersIndex()" class="text-sm text-primary hover:underline flex items-center gap-1">
-                        Ver todas
-                        <ArrowRight class="h-4 w-4" />
-                    </Link>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div class="text-center p-4 rounded-lg bg-muted/50">

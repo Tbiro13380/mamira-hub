@@ -38,10 +38,7 @@ class StatsController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        $totalTears = Tear::count();
-
-        return response()->json([
-            'total_tears' => $totalTears,
-        ]);
+        // Redirecionar de volta ao dashboard para atualizar os dados
+        return redirect()->route('dashboard');
     }
 }

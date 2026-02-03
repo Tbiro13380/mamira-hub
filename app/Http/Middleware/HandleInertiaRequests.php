@@ -41,6 +41,13 @@ class HandleInertiaRequests extends Middleware
             $user->load('selectedBadge');
         }
         
+        $unreadNotificationsCount = 0;
+        if ($user) {
+            $unreadNotificationsCount = \App\Models\Notification::where('user_id', $user->id)
+                ->where('read', false)
+                ->count();
+        }
+        
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -61,6 +68,7 @@ class HandleInertiaRequests extends Middleware
                     ] : null,
                 ] : null,
             ],
+            'unreadNotificationsCount' => $unreadNotificationsCount,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

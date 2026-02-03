@@ -85,4 +85,19 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Badge::class, 'selected_badge_id');
     }
+
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class)->orderBy('created_at', 'desc');
+    }
+
+    public function unreadNotifications()
+    {
+        return $this->notifications()->where('read', false);
+    }
+
+    public function unreadNotificationsCount(): int
+    {
+        return $this->unreadNotifications()->count();
+    }
 }

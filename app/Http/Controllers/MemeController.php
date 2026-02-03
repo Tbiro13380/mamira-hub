@@ -18,15 +18,32 @@ class MemeController extends Controller
     public function index(): Response
     {
         $today = Carbon::today();
+        $weekStart = Carbon::now()->startOfWeek();
+        $weekEnd = Carbon::now()->endOfWeek();
         $userId = Auth::id();
 
-        // Memes de hoje
-        $todayMemes = Meme::with(['user.selectedBadge', 'votes.user.selectedBadge', 'comments.user.selectedBadge'])
+        // Memes da semana (buscar modelos primeiro)
+        $weekMemesQuery = Meme::with(['user.selectedBadge', 'votes.user.selectedBadge', 'comments.user.selectedBadge'])
             ->withCount('comments')
-            ->whereDate('meme_date', $today)
+            ->whereBetween('meme_date', [$weekStart, $weekEnd])
             ->orderBy('total_votes', 'desc')
-            ->get()
-            ->map(function ($meme) use ($userId) {
+            ->get();
+
+        // Determinar o ganhador da semana (o meme com mais votos da semana) ANTES do map
+        $weekWinner = $weekMemesQuery->first();
+        if ($weekWinner && $weekWinner->total_votes > 0) {
+            // Remover is_winner de todos os memes da semana
+            Meme::whereBetween('meme_date', [$weekStart, $weekEnd])
+                ->update(['is_winner' => false]);
+            
+            // Marcar como vencedor se ainda não estiver marcado
+            if (!$weekWinner->is_winner) {
+                $weekWinner->update(['is_winner' => true]);
+            }
+        }
+
+        // Agora mapear para arrays
+        $weekMemes = $weekMemesQuery->map(function ($meme) use ($userId) {
                 $userVote = $meme->getUserVote($userId);
                 
                 // Agrupar votos por emoji com informações dos usuários
@@ -126,9 +143,10 @@ class MemeController extends Controller
             });
 
         return Inertia::render('memes/Index', [
-            'today_memes' => $todayMemes,
+            'week_memes' => $weekMemes,
             'hall_of_fame' => $hallOfFame,
-            'today_date' => $today->format('d/m/Y'),
+            'week_start' => $weekStart->format('d/m/Y'),
+            'week_end' => $weekEnd->format('d/m/Y'),
         ]);
     }
 
@@ -173,6 +191,12 @@ class MemeController extends Controller
         }
         
         $path = $file->store('memes', 'public');
+
+        // Remover is_winner de todos os memes da semana atual ao criar um novo
+        $weekStart = Carbon::now()->startOfWeek();
+        $weekEnd = Carbon::now()->endOfWeek();
+        Meme::whereBetween('meme_date', [$weekStart, $weekEnd])
+            ->update(['is_winner' => false]);
 
         $meme = Meme::create([
             'user_id' => Auth::id(),
@@ -227,6 +251,23 @@ class MemeController extends Controller
         $meme->refresh();
         $meme->load(['votes.user.selectedBadge']);
         
+        // Atualizar ganhador da semana
+        $weekStart = Carbon::now()->startOfWeek();
+        $weekEnd = Carbon::now()->endOfWeek();
+        $weekMemes = Meme::whereBetween('meme_date', [$weekStart, $weekEnd])
+            ->orderBy('total_votes', 'desc')
+            ->get();
+        
+        // Remover is_winner de todos os memes da semana
+        Meme::whereBetween('meme_date', [$weekStart, $weekEnd])
+            ->update(['is_winner' => false]);
+        
+        // Marcar o meme com mais votos como ganhador
+        $weekWinner = $weekMemes->first();
+        if ($weekWinner && $weekWinner->total_votes > 0) {
+            $weekWinner->update(['is_winner' => true]);
+        }
+        
         // Agrupar votos por emoji com informações dos usuários
         $votesByEmoji = [];
         $allVotes = $meme->votes;
@@ -251,10 +292,14 @@ class MemeController extends Controller
             ];
         }
 
+        // Recarregar o meme para pegar o is_winner atualizado
+        $meme->refresh();
+        
         return response()->json([
             'total_votes' => $meme->total_votes,
             'user_vote' => $meme->getUserVote($userId)?->emoji,
             'votes_by_emoji' => $votesByEmoji,
+            'is_winner' => $meme->is_winner,
         ]);
     }
 
@@ -270,6 +315,16 @@ class MemeController extends Controller
             'content' => $validated['content'],
         ]);
 
+        // Criar notificação para o autor do meme
+        $notificationService = new \App\Services\NotificationService();
+        $notificationService->notifyCommentOnMeme($meme, Auth::user());
+
+        // Se for uma requisição Inertia, redirecionar de volta
+        if ($request->header('X-Inertia')) {
+            return redirect()->back();
+        }
+
+        // Se for uma requisição AJAX tradicional, retornar JSON
         $comment->load('user.selectedBadge');
 
         return response()->json([
